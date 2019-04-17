@@ -117,18 +117,49 @@ def load_atn():
     return a
 
 
+def split_bigboi(train, test, valid):
+    """
+    literally using this to split the big file into 3 or so parts so we can use
+    it (data_int_stream). Customizeable parameters for train/test/valid split.
+    """
+
+    with open("data_int_stream.pickle", "rb") as f:
+        data = pickle.load(f)
+        tot_len = len(data)
+        train_size = int(tot_len * train)
+        test_size = int(test * train)
+        valid_size = int(valid * train)
+
+        train_set = data[:train_size]
+        test_set = data[train_size : train_size + test_size]
+        valid_set = data[train_size + test_size :]
+
+        # split train_set into 3 because github file size restrictions
+        chunk_size = int(train_size / 3)
+
+        for i in range(3):
+            with open("train_" + str(i) + ".pickle", "wb") as f:
+                pickle.dump(train_set[chunk_size * i : chunk_size * (i + 1)], f)
+
+        with open("test.pickle", "wb") as f:
+            pickle.dump(test_set, f)
+
+        with open("validation.pickle", "wb") as f:
+            pickle.dump(valid_set, f)
+
+
 if __name__ == "__main__":
-    # dataset_list = load_atk()
-    dataset_list = [
-        "all-the-news/articles1.csv",
-        "all-the-news/articles2.csv",
-        "all-the-news/articles3.csv",
-    ]
-    dataset_to_index(
-        dataset_list,
-        20000,
-        "inv_idx.pickle",
-        "reg_idx.pickle",
-        "data_int_stream.pickle",
-    )
+    # dataset_list = [
+    #     "all-the-news/articles1.csv",
+    #     "all-the-news/articles2.csv",
+    #     "all-the-news/articles3.csv",
+    # ]
+    # dataset_to_index(
+    #     dataset_list,
+    #     20000,
+    #     "inv_idx.pickle",
+    #     "reg_idx.pickle",
+    #     "data_int_stream.pickle",
+    # )
+    split_bigboi(0.8, 0.1, 0.1)
     print("Run completed.")
