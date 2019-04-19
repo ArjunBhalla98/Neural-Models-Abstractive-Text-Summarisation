@@ -84,14 +84,14 @@ def dataset_to_index(datasets, n_tokens, outfile_inv, outfile_word, outfile_lst)
                 if word in word_to_idx:
                     title_sub.append(word_to_idx[word])
                 else:
-                    title_sub.append(-1)
+                    title_sub.append(n_tokens)
 
             content_sub = []
             for word in content.split():
                 if word in word_to_idx:
                     content_sub.append(word_to_idx[word])
                 else:
-                    content_sub.append(-1)
+                    content_sub.append(n_tokens)
             hd_article.append((title_sub, content_sub, ex_id))
         ds_num += 1
 
@@ -176,17 +176,17 @@ def remove_negatives():
 
 
 if __name__ == "__main__":
-    # dataset_list = [
-    #     "all-the-news/articles1.csv",
-    #     "all-the-news/articles2.csv",
-    #     "all-the-news/articles3.csv",
-    # ]
-    # dataset_to_index(
-    #     dataset_list,
-    #     20000,
-    #     "inv_idx.pickle",
-    #     "reg_idx.pickle",
-    #     "data_int_stream.pickle",
-    # )
+    dataset_list = [
+        "all-the-news/articles1.csv",
+        "all-the-news/articles2.csv",
+        "all-the-news/articles3.csv",
+    ]
+    dataset_to_index(
+        dataset_list,
+        20000,
+        "inv_idx.pickle",
+        "reg_idx.pickle",
+        "data_int_stream.pickle",
+    )
     split_bigboi(0.8, 0.1, 0.1)
     print("Run completed.")
