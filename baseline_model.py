@@ -88,7 +88,9 @@ def get_xy(data, seq_length):
         #         )  # Unknown characters. Will definitely fuck up accuracy.
 
     fin_x = np.asarray(fin_x)
+    fin_x = fin_x / np.linalg.norm(fin_x)  # Normalise data for softmax
     y = np.asarray(fin_y)
+    y = y / np.linalg.norm(y)
 
     X = np.reshape(fin_x, (len(fin_x), seq_length, 1))
     return X, y
