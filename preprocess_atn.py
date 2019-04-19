@@ -148,6 +148,33 @@ def split_bigboi(train, test, valid):
             pickle.dump(valid_set, f)
 
 
+def remove_negatives():
+    """
+    This function only exists because I (Arjun) am a moron and forgot that using
+    cross-entropy loss is a fuckin' log loss function so can't take -1 values for
+    invalid labels. Therefore, 20000 is the label for unknown words.
+    """
+    f1 = open("train_0.pickle", "rb")
+    f2 = open("train_1.pickle", "rb")
+    f3 = open("train_2.pickle", "rb")
+    f4 = open("validation.pickle", "rb")
+    f5 = open("test.pickle", "rb")
+
+    lst = [
+        pickle.load(f1),
+        pickle.load(f2),
+        pickle.load(f3),
+        pickle.load(f4),
+        pickle.load(f5),
+    ]
+
+    for ds in lst:
+        ex_num = 0
+        for hd, art, idx in ds:
+            hd_new = list(map(lambda x: 20000 if x == -1 else x, hd))
+            art_new = list(map(lambda x: 20000 if x == -1 else x, art))
+
+
 if __name__ == "__main__":
     # dataset_list = [
     #     "all-the-news/articles1.csv",
