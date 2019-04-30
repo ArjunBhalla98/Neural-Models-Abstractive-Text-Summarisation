@@ -2,37 +2,16 @@ import pickle
 import torch.nn as nn
 import torchvision as torch
 import numpy as np
-from keras.models import Model, Sequential
+from keras.models import Model, Sequential, load_model
 from keras.layers import Dense, Input, GRU
 from keras.layers.embeddings import Embedding
-from keras.layers import LSTM, Dense
+from keras.layers import LSTM, Dropout
 from keras.callbacks import ModelCheckpoint
 from keras.utils import np_utils
-
-
-class RNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, n_categories):
-        super(RNN, self).__init__()
-        self.hidden_size = hidden_size
-
-        self.i2h = nn.Linear(n_categories + input_size + hidden_size, hidden_size)
-        self.i2o = nn.Linear(n_categories + input_size + hidden_size, output_size)
-        self.o2o = nn.Linear(hidden_size + output_size, output_size)
-        self.dropout = nn.Dropout(0.1)
-        self.softmax = nn.LogSoftmax(dim=1)
-
-    def forward(self, category, input, hidden):
-        input_combined = torch.cat((category, input, hidden), 1)
-        hidden = self.i2h(input_combined)
-        output = self.i2o(input_combined)
-        output_combined = torch.cat((hidden, output), 1)
-        output = self.o2o(output_combined)
-        output = self.dropout(output)
-        output = self.softmax(output)
-        return output, hidden
-
-    def initHidden(self):
-        return torch.zeros(1, self.hidden_size)
+from keras.optimizers import Adam
+from keras.preprocessing.text import one_hot
+from keras.layers.embeddings import Embedding
+import random
 
 
 def load_data(ds):
@@ -71,8 +50,8 @@ def get_xy(data, seq_length):
     fin_x = []
     fin_y = []
 
-    # Teacher force this bitch (for now)
-    for ex in data:
+    # Teacher forced training
+    for ex in data[:5000]:
         headline = ex[0]
         article = ex[1]
         for i in range(0, len(headline) - seq_length, 1):
@@ -80,36 +59,39 @@ def get_xy(data, seq_length):
             seq_out = [headline[i + seq_length]]
             fin_x.append(seq_in)
             fin_y.append(seq_out)
-        ############# COULD BE DUBIOUS HERE, DOING THIS ONLY FOR A BASELINE CHECK ################
-        # if len(headline) < n_feats:
-        #     while len(headline) < n_feats:
-        #         headline.append(
-        #             -1
-        #         )  # Unknown characters. Will definitely fuck up accuracy.
-
-    fin_x = np.asarray(fin_x)
-    fin_x = fin_x / np.linalg.norm(fin_x)  # Normalise data for softmax
-    y = np.asarray(fin_y)
-    y = y / np.linalg.norm(y)
-
-    X = np.reshape(fin_x, (len(fin_x), seq_length, 1))
+    X = np.asarray(fin_x)
+    print(np.shape(X))
+    X = np.reshape(X, (len(X), seq_length))
+    y = np_utils.to_categorical(fin_y)  # One-hot encoding
     return X, y
 
 
-def train(seq_length):
+def train(seq_length, do_output, num_words):
     """
     Trains using a basic NN (may be updated later to reflect easy functionality)
     """
     train_set, valid_set, test_set = load_data(0)
     train_X, train_y = get_xy(train_set, seq_length)
 
-    print(np.shape(train_X))
-    print(np.shape(train_y))
+    adam = Adam(
+        lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False
+    )
+
     # LSTM model
     model = Sequential()
-    model.add(GRU(256, input_shape=(train_X.shape[1], train_X.shape[2])))
+    model.add(Embedding(num_words, 100, input_length=seq_length))
+    model.add(
+        GRU(
+            512, input_shape=(train_X.shape[0], train_X.shape[1]), return_sequences=True
+        )
+    )
+    model.add(Dropout(0.2))
+    model.add(GRU(512, return_sequences=True))
+    model.add(Dropout(0.2))
+    model.add(GRU(512))
+    model.add(Dropout(0.1))
     model.add(Dense(train_y.shape[1], activation="softmax"))
-    model.compile(loss="sparse_categorical_crossentropy", optimizer="adam")
+    model.compile(loss="categorical_crossentropy", optimizer="adam")
 
     # define the checkpoint
     filepath = "weights-improvement-{epoch:02d}-{loss:.4f}.hdf5"
@@ -118,8 +100,84 @@ def train(seq_length):
     )
     callbacks_list = [checkpoint]
 
-    model.fit(train_X, train_y, epochs=20, batch_size=128, callbacks=callbacks_list)
+    if not do_output:
+        model.fit(train_X, train_y, epochs=30, batch_size=64, callbacks=callbacks_list)
+    else:
+        filename = "weights-improvement-22-0.8882.hdf5"
+        predict(filename, model, seq_length, num_words)
+
+
+def article_to_net(article, seq_length):
+    x = []
+    y = []
+    for i in range(0, len(article) - seq_length, 1):
+        seq_in = article[i : i + seq_length]
+        seq_out = [article[i + seq_length]]
+        x.append(seq_in)
+        y.append(seq_out)
+
+    x = np.asarray(x)
+    x = np.reshape(x, (len(x), seq_length, 1))
+
+    return x
+
+
+def predict(filename, model, seq_length, num_words):
+    test_set = None
+    inv_idx = None
+    with open("train_0.pickle", "rb") as f:
+        test_set = pickle.load(f)
+
+    with open("inv_idx.pickle", "rb") as f:
+        inv_idx = pickle.load(f)
+
+    test_X, test_y = get_xy(test_set, seq_length)
+    test_set = test_set[: int(len(test_set) * 0.2)]
+    model.load_weights(filename)
+    model.compile(loss="categorical_crossentropy", optimizer="adam")
+    num_gens = 5
+    for i in range(num_gens):
+        ex_test = random.randint(0, len(test_set) - 1)
+        while len(test_set[ex_test][0]) < seq_length:
+            ex_test = random.randint(0, len(test_set) - 1)
+        x = test_set[ex_test][0][:seq_length]
+        final_out = []
+        act_out = []
+
+        for wrd_idx in test_set[ex_test][0]:
+            if wrd_idx != num_words:  # I know magic numbers are bad code leave me alone
+                act_out.append(inv_idx[wrd_idx])
+
+        print("Article headline actual: " + " ".join(act_out))
+        for i in range(15):
+            x = np.reshape(x, (1, len(x)))
+            prediction = model.predict(x, verbose=0)
+            idx = np.argmax(prediction)
+            result = "DNK" if idx == (num_words) else inv_idx[idx]
+            final_out.append(result)
+            x = np.append(x, idx)
+            x = x[1:]
+        print("Generated headline: " + " ".join(final_out), end="\n")
+        print()
+
+
+def continue_train(model, epch, seq_length):
+    """
+    Loads a pretrained model and will continue to train it on some data.
+    """
+    n_model = load_model(model)
+    train_set, valid_set, test_set = load_data(0)
+    train_X, train_y = get_xy(train_set, seq_length)
+
+    # define the checkpoint
+    filepath = "weights-improvement-{epoch:02d}-{loss:.4f}.hdf5"
+    checkpoint = ModelCheckpoint(
+        filepath, monitor="loss", verbose=1, save_best_only=True, mode="min"
+    )
+    callbacks_list = [checkpoint]
+    n_model.fit(train_X, train_y, epochs=epch, callbacks=callbacks_list)
 
 
 if __name__ == "__main__":
-    train(5)
+    train(5, True, 20000)
+    # continue_train("weights-improvement-22-0.8882.hdf5", 30, 5)
