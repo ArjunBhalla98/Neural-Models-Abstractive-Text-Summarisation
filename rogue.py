@@ -25,6 +25,15 @@ def rogue_2(l1, l2):
     return (overlap / len(b1), overlap / len(b2))
 
 
+def lcs(X, Y, m, n):
+    if m == 0 or n == 0:
+        return 0
+    elif X[m - 1] == Y[n - 1]:
+        return 1 + lcs(X, Y, m - 1, n - 1)
+    else:
+        return max(lcs(X, Y, m, n - 1), lcs(X, Y, m - 1, n))
+
+
 def rogue_l(l1, l2):
     """
     Longest Common Subsequence (LCS) based statistics.
@@ -32,4 +41,7 @@ def rogue_l(l1, l2):
     level structure similarity naturally and identifies longest
     co-occurring in sequence n-grams automatically.
     """
-    return 2
+    ll1 = len(l1)
+    ll2 = len(l2)
+    result = lcs(l1, l2, ll1, ll2)
+    return (result / ll1, result / ll2)
